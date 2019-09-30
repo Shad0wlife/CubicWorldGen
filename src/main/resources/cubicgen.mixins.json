@@ -23,6 +23,7 @@
         "common.extras.FarLands",
         "common.MixinSaveHandler",
         "common.MixinStringholdStart",
+        "common.MixinVillageStart",
         "common.MixinWorldInfo"
     ],
     "client": [],

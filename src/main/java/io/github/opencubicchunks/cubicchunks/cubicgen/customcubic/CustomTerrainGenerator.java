@@ -47,6 +47,7 @@ import io.github.opencubicchunks.cubicchunks.cubicgen.customcubic.builder.NoiseS
 import io.github.opencubicchunks.cubicchunks.cubicgen.customcubic.structure.CubicCaveGenerator;
 import io.github.opencubicchunks.cubicchunks.cubicgen.customcubic.structure.CubicRavineGenerator;
 import io.github.opencubicchunks.cubicchunks.cubicgen.customcubic.structure.feature.CubicStrongholdGenerator;
+import io.github.opencubicchunks.cubicchunks.cubicgen.customcubic.structure.feature.CubicVillageGenerator;
 import mcp.MethodsReturnNonnullByDefault;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Blocks;
@@ -95,6 +96,7 @@ public class CustomTerrainGenerator extends BasicCubeGenerator {
     @Nonnull private ICubicStructureGenerator caveGenerator;
     @Nonnull private ICubicStructureGenerator ravineGenerator;
     @Nonnull private ICubicFeatureGenerator strongholds;
+    @Nonnull private ICubicFeatureGenerator villages;
 
     public CustomTerrainGenerator(World world, final long seed) {
         this(world, world.getBiomeProvider(), CustomGeneratorSettings.load(world), seed);
@@ -116,14 +118,17 @@ public class CustomTerrainGenerator extends BasicCubeGenerator {
         InitCubicStructureGeneratorEvent caveEvent = new InitCubicStructureGeneratorEvent(EventType.CAVE, new CubicCaveGenerator());
         InitCubicStructureGeneratorEvent strongholdsEvent = new InitCubicStructureGeneratorEvent(EventType.STRONGHOLD, new CubicStrongholdGenerator(conf));
         InitCubicStructureGeneratorEvent ravineEvent = new InitCubicStructureGeneratorEvent(EventType.RAVINE, new CubicRavineGenerator(conf));
+        InitCubicStructureGeneratorEvent villagesEvent = new InitCubicStructureGeneratorEvent(EventType.VILLAGE, new CubicVillageGenerator(conf));
 
         MinecraftForge.TERRAIN_GEN_BUS.post(caveEvent);
         MinecraftForge.TERRAIN_GEN_BUS.post(strongholdsEvent);
         MinecraftForge.TERRAIN_GEN_BUS.post(ravineEvent);
+        MinecraftForge.TERRAIN_GEN_BUS.post(villagesEvent);
         
         this.caveGenerator = caveEvent.getNewGen();
         this.strongholds = (CubicFeatureGenerator) strongholdsEvent.getNewGen();
         this.ravineGenerator = ravineEvent.getNewGen();
+        this.villages = (CubicFeatureGenerator) villagesEvent.getNewGen();
 
         this.fillCubeBiomes = !isMainLayer;
         this.biomeSource = new BiomeSource(world, conf.createBiomeBlockReplacerConfig(), biomeProvider, 2);
@@ -243,20 +248,29 @@ public class CustomTerrainGenerator extends BasicCubeGenerator {
 
             MinecraftForge.EVENT_BUS.post(new PopulateCubeEvent.Pre(world, rand, pos.getX(), pos.getY(), pos.getZ(), false));
             strongholds.generateStructure(world, rand, pos);
+            boolean village = villages.generateStructure(world, rand, pos);
             populators.get(cubicBiome.getBiome()).generate(world, rand, pos, cubicBiome.getBiome());
-            MinecraftForge.EVENT_BUS.post(new PopulateCubeEvent.Post(world, rand, pos.getX(), pos.getY(), pos.getZ(), false));
+            MinecraftForge.EVENT_BUS.post(new PopulateCubeEvent.Post(world, rand, pos.getX(), pos.getY(), pos.getZ(), village));
             CubeGeneratorsRegistry.generateWorld(world, rand, pos, cubicBiome.getBiome()); }
     }
 
     @Override
     public void recreateStructures(ICube cube) {
-        this.strongholds.generate(world, null, cube.getCoords());
+        if (this.conf.strongholds) {
+            this.strongholds.generate(world, null, cube.getCoords());
+        }
+        if(this.conf.villages) {
+            this.villages.generate(world, null, cube.getCoords());
+        }
     }
 
     @Nullable @Override
     public BlockPos getClosestStructure(String name, BlockPos pos, boolean findUnexplored) {
         if ("Stronghold".equals(name)) {
             return strongholds.getNearestStructurePos((World) world, pos, true);
+        }
+        if("Village".equals(name)){
+            return villages.getNearestStructurePos((World) world, pos, findUnexplored);
         }
         return null;
     }
@@ -313,6 +327,9 @@ public class CustomTerrainGenerator extends BasicCubeGenerator {
         }
         if (this.conf.strongholds) {
             this.strongholds.generate(world, cube, cubePos);
+        }
+        if(this.conf.villages) {
+            this.villages.generate(world, cube, cubePos);
         }
     }
 }
